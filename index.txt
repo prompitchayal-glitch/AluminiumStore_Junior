@@ -1,0 +1,343 @@
+
+
+ไฟล์ index.tsx ฉบับรองรับมือถือ 
+
+// app/(tabs)/index.tsx  (แทนที่ทั้งหมดไฟล์นี้)
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
+import { Href, useRouter } from "expo-router";
+import { MotiView } from "moti";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  ColorValue,
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { API_URL } from "../../config"; // ใช้ config เดิม
+
+type MenuItem = {
+  title: string;
+  subtitle: string;
+  icon: any;
+  colors: readonly [ColorValue, ColorValue];
+  path: Href;
+  iconSize?: number;
+};
+
+export default function Index() {
+  const router = useRouter();
+  const [booting, setBooting] = useState(true);
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  // --- state สำหรับฟอร์มล็อกอิน ---
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loadingLogin, setLoadingLogin] = useState(false);
+
+  // อ่านสถานะล็อกอินจาก AsyncStorage เมื่อเข้าแอป
+  useEffect(() => {
+    (async () => {
+      try {
+        const flag = await AsyncStorage.getItem("loggedIn");
+        setLoggedIn(flag === "1");
+      } finally {
+        setBooting(false);
+      }
+    })();
+  }, []);
+
+  // ---- เมนู Dashboard เดิม (ห้ามแก้ไขส่วนอื่น) ----
+  const menuItems: MenuItem[] = [
+    {
+      title: "ข้อมูลลูกค้า",
+      subtitle: "เพิ่ม/แก้ไข/ลบ และดูรายชื่อทั้งหมด",
+      icon: require("../../assets/cus.png"),
+      colors: ["#8094b3ff", "#2575fc"],
+      path: "/(tabs)/CustomerScreen",
+      iconSize: 55,
+    },
+    {
+      title: "พนักงาน",
+      subtitle: "จัดการข้อมูลพนักงาน สาย ขาด ลา",
+      icon: require("../../assets/emp.png"),
+      colors: ["#c7cecdff", "#e6afebff"],
+      path: "/(tabs)/EmployeeManageScreen",
+      iconSize: 80,
+    },
+    {
+      title: "รายละเอียดงาน",
+      subtitle: "ดูรายการงาน และอะไหล่ในแต่ละงาน",
+      icon: require("../../assets/job.png"),
+      colors: ["#8EC5FC", "#E0C3FC"],
+      path: "/(tabs)/JobListScreen",
+      iconSize: 55,
+    },
+    {
+      title: "รายได้",
+      subtitle: "ดูรายได้ประจำเดือน / จังหวัด / ประเภทงาน",
+      icon: require("../../assets/summary.png"),
+      colors: ["#49ddb1ff", "#a0c5ddff"],
+      path: "/(tabs)/summary_income_Province_Typejob",
+      iconSize: 55,
+    },
+  ];
+
+  // ----- ฟังก์ชันล็อกอิน/ออกจากระบบ -----
+  const handleLogin = async () => {
+    if (!username || !password) {
+      Alert.alert("Error", "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
+      return;
+    }
+    try {
+      setLoadingLogin(true);
+      const res = await fetch(`${API_URL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (data?.success) {
+        await AsyncStorage.setItem("loggedIn", "1");
+        setLoggedIn(true);
+        setUsername("");
+        setPassword("");
+      } else {
+        Alert.alert("ล็อกอินไม่สำเร็จ", data?.message || "กรุณาตรวจสอบข้อมูลอีกครั้ง");
+      }
+    } catch (e) {
+      Alert.alert("Error", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์");
+    } finally {
+      setLoadingLogin(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem("loggedIn");
+    setLoggedIn(false);
+  };
+
+  // ----- ระหว่างอ่านสถานะเริ่มต้น -----
+  if (booting) {
+    return (
+      <View style={[stylesFull.center, { backgroundColor: "#f0f4f8", flex: 1 }]}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  // ----- ถ้ายังไม่ล็อกอิน: แสดงฟอร์ม Login -----
+  if (!loggedIn) {
+    return (
+      <View style={stylesLogin.container}>
+        <Text style={stylesLogin.title}>CEO Login</Text>
+
+        <TextInput
+          placeholder="Username"
+          style={stylesLogin.input}
+          placeholderTextColor="#5c5959ff"
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize="none"
+        />
+        <TextInput
+          placeholder="Password"
+          style={stylesLogin.input}
+          secureTextEntry
+          placeholderTextColor="#5c5959ff"
+          value={password}
+          onChangeText={setPassword}
+        />
+
+        <TouchableOpacity
+          style={stylesLogin.button}
+          onPress={handleLogin}
+          disabled={loadingLogin}
+        >
+          <Text style={stylesLogin.buttonText}>
+            {loadingLogin ? "Loading..." : "Login"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ----- ล็อกอินแล้ว: แสดงหน้า Dashboard เดิม + ปุ่มออกจากระบบ -----
+  return (
+    <LinearGradient colors={["#eef2ff", "#dce2ff", "#b8c0ff"]} style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.headerRow}>
+          <Text style={styles.header}>🏢 CEO Dashboard</Text>
+
+          {/* ปุ่มออกจากระบบ */}
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+            <Text style={styles.logoutText}>ออกจากระบบ</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.sub}>ภาพรวมทั้งหมดในมือคุณ</Text>
+
+        <View style={styles.grid}>
+          {menuItems.map((item, index) => (
+            <TouchableOpacity
+              key={index}
+              activeOpacity={0.9}
+              onPress={() => router.push(item.path)}
+              style={styles.cardWrapper}
+            >
+              <MotiView
+                from={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: index * 0.15, type: "spring" }}
+              >
+                <LinearGradient
+                  colors={item.colors}
+                  style={styles.card}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Image
+                    source={item.icon}
+                    style={[styles.icon, { width: item.iconSize, height: item.iconSize }]}
+                  />
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <Text style={styles.cardSub}>{item.subtitle}</Text>
+                </LinearGradient>
+              </MotiView>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
+  );
+}
+
+/* ======= styles (Dashboard เดิม + ปุ่มออกจากระบบ) ======= */
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  headerRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  header: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#222",
+    textAlign: "left",
+  },
+  logoutBtn: {
+    backgroundColor: "#ff4d4d",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+  },
+  logoutText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  sub: {
+    fontSize: 15,
+    color: "#555",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    width: "100%",
+  },
+  cardWrapper: {
+    width: "48%",
+    marginBottom: 20,
+  },
+  card: {
+    borderRadius: 20,
+    paddingVertical: 24,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  icon: {
+    width: 50,
+    height: 50,
+    resizeMode: "contain",
+    marginBottom: 10,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#fff",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  cardSub: {
+    fontSize: 12,
+    color: "#f0f0f0",
+    textAlign: "center",
+  },
+});
+
+/* ======= styles ฟอร์ม Login (เฉพาะหน้านี้) ======= */
+const stylesLogin = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f0f4f8",
+    padding: 20,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: "bold",
+    marginBottom: 30,
+    color: "#333",
+  },
+  input: {
+    width: "80%",
+    backgroundColor: "#fff",
+    padding: 12,
+    borderRadius: 8,
+    marginVertical: 8,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  button: {
+    marginTop: 20,
+    backgroundColor: "#007bff",
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+    width: "80%",
+    alignItems: "center",
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+});
+
+const stylesFull = StyleSheet.create({
+  center: { alignItems: "center", justifyContent: "center" },
+});
