@@ -1,19 +1,24 @@
-const express = require("express");
+const express = require("express");  // ดึงไลบรารี express มาใช้ สร้างเว็บ server / API
 const sql = require("mssql");
-const cors = require("cors");
+const cors = require("cors"); // ถ้าไม่มี: เวลา frontend เรียก API จากโดเมน/พอร์ตคนละอันกับ backend จะติด CORS error ที่ฝั่งเบราว์เซอร์
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const config = {
-  user: "sa",
-  password: "Dydee",
-  server: "LAPTOP-AB0IP018",
-  database: "AluminiumStore",
-  options: { encrypt: false, trustServerCertificate: true }
-};
+require("dotenv").config({ path: __dirname + "/.env" });
 
+const config = {
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  server: process.env.DB_SERVER,
+  database: process.env.DB_NAME,
+  options: {
+    encrypt: String(process.env.DB_ENCRYPT || "false").toLowerCase() === "true",
+    trustServerCertificate:
+      String(process.env.DB_TRUST_SERVER_CERT || "true").toLowerCase() === "true",
+  },
+};
 
 // POST login CEO
 // POST CEO Login  — รองรับทั้ง /login และ /api/login
@@ -40,7 +45,7 @@ app.post(["/login", "/api/login"], async (req, res) => {
           AND LTRIM(RTRIM(Password)) = @Password
       `);//ตัดช่องวางทั้งซ้ายและขวา LTRIM RTRIM  กรณีผู้ใช้ป้อน หรือ เคาะ ค่าว่างมา
 
-    if (result.recordset.length > 0) {
+    if (result.recordset.length > 0) {  // ถ้าพบผู้ใช้ที่ตรงกับเงื่อนไข ก็จะ > 0
       const user = result.recordset[0];
       return res.status(200).json({
         success: true,
@@ -620,6 +625,8 @@ app.post("/api/add/job-of-emp", async (req, res) => {
   }
 });
 
+const PORT = process.env.PORT || 3000;
 
-
-app.listen(3000, () => console.log("Backend running on http://localhost:3000"));
+app.listen(PORT, () => {
+  console.log(`Backend running on http://localhost:${PORT}`);
+});
