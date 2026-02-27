@@ -6,19 +6,33 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-require("dotenv").config({ path: __dirname + "/.env" });
+// load .env from project root so it works even if backend/ doesn't contain its own file
+require("dotenv").config({ path: __dirname + "/../.env" });
+console.log("--- Check Environment Variables ---");
+console.log("DB_HOST:", process.env.DB_HOST);
+console.log("DB_USER:", process.env.DB_USER);
 
-const config = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  server: process.env.DB_SERVER,
-  database: process.env.DB_NAME,
-  options: {
-    encrypt: String(process.env.DB_ENCRYPT || "false").toLowerCase() === "true",
-    trustServerCertificate:
-      String(process.env.DB_TRUST_SERVER_CERT || "true").toLowerCase() === "true",
-  },
+const dbConfig = {
+    server: process.env.DB_HOST, 
+    authentication: {
+        type: 'default',
+        options: {
+            userName: process.env.DB_USER,
+            password: process.env.DB_PASSWORD,
+        }
+    },
+    options: {
+        port: parseInt(process.env.DB_PORT) || 1433,
+        database: process.env.DB_NAME,
+        // ปรับตรงนี้ให้ยืดหยุ่นขึ้น
+        encrypt: process.env.DB_ENCRYPT === 'true', 
+        trustServerCertificate: true, // บังคับเป็น true เพื่อข้ามปัญหา SSL ในเครื่องตัวเอง
+        connectTimeout: 30000 // เพิ่มเวลาให้ระบบรอการเชื่อมต่อ (30 วินาที)
+    }
 };
+
+// config variable kept for legacy usage (used in login handler)
+const config = dbConfig;
 
 // POST login CEO
 // POST CEO Login  — รองรับทั้ง /login และ /api/login
@@ -34,7 +48,7 @@ app.post(["/login", "/api/login"], async (req, res) => {
   }
 
   try {
-    const pool = await sql.connect(config);
+    const pool = await sql.connect(dbConfig);
     const result = await pool.request()
       .input("Username", sql.VarChar(50), username)
       .input("Password", sql.VarChar(50), password)
@@ -68,7 +82,7 @@ app.post(["/login", "/api/login"], async (req, res) => {
 // ดึงข้อมูลลูกค้าทั้งหมด
 app.get("/api/customers", async (req, res) => {
   try {
-    const pool = await sql.connect(config);
+    const pool = await sql.connect(dbConfig);
     const result = await pool.request().query(`SELECT * FROM Customer ORDER BY Customer_id`);
     res.json(result.recordset);
   } catch (err) {
@@ -78,7 +92,7 @@ app.get("/api/customers", async (req, res) => {
 // ดึงข้อมูลพนักงานทั้งหมด
 app.get("/api/employees", async (req, res) => {
   try {
-    const pool = await sql.connect(config);
+    const pool = await sql.connect(dbConfig);
     const result = await pool.request()
       .query("SELECT * FROM dbo.Employee ORDER BY Employee_id"); // ใส่ dbo. เผื่อ schema default ไม่ตรง
     res.json(result.recordset);
@@ -92,7 +106,7 @@ app.get("/api/employees", async (req, res) => {
 //  ดึงข้อมูลอะไหล่ทั้งหมด 
 app.get("/api/materials", async (req, res) => {
   try {
-    const pool = await sql.connect(config);
+    const pool = await sql.connect(dbConfig);
     const result = await pool.request().query("SELECT * FROM Material ORDER BY TRY_CAST(Material_id AS INT)");  //ฟังก์ชัน TRY_CAST() จะพยายามแปลงค่าคอลัม Material_id จากvarchar ให้เป็นตัวเลข ถ้าแปลงไม่ได้จะข้าม (ไม่ error)
     res.json(result.recordset);
   } catch (err) {
@@ -112,7 +126,7 @@ app.get("/api/materials", async (req, res) => {
 app.get("/api/customers/by-Province", async (req, res) => {
   const { Province } = req.query; // รับพารามิเตอร์จาก URL เช่น ?city=bangkok
   try {
-    const pool = await sql.connect(config);
+    const pool = await sql.connect(dbConfig);
     const result = await pool.request()
       .input("Province", sql.VarChar(50), Province)
       .query(`SELECT * FROM dbo.GetCustomers_Province(@Province)`); // 🔸 เรียกใช้ฟังก์ชันที่เราสร้าง
@@ -127,7 +141,7 @@ app.get("/api/customers/by-Province", async (req, res) => {
 app.get("/api/employee/late", async (req, res) => {
   const { month, year } = req.query;
   try {
-    const pool = await sql.connect(config);
+    const pool = await sql.connect(dbConfig);
     const result = await pool.request()
       .input("Month", sql.Int, month)
       .input("Year", sql.Int, year)
@@ -141,7 +155,7 @@ app.get("/api/employee/late", async (req, res) => {
 app.get("/api/job-of-employee/:jobId", async (req, res) => {
   const jobId = req.params.jobId;
   try {
-    const pool = await sql.connect(config);
+    const pool = await sql.connect(dbConfig);
     const result = await pool.request()
       .input("idjob", sql.VarChar(20), jobId)   // <-- ตรงกับฟังก์ชัน SQL
       .query(`SELECT * FROM dbo.Job_of_Employee(@idjob)`);
@@ -157,7 +171,7 @@ app.get("/api/job-of-employee/:jobId", async (req, res) => {
 app.get("/api/income/month", async (req, res) => {
   const { month, year } = req.query;
   try {
-    const pool = await sql.connect(config);
+    const pool = await sql.connect(dbConfig);
     const result = await pool.request()
       .input("Month", sql.Int, month)
       .input("Year", sql.Int, year)
@@ -175,7 +189,7 @@ app.get("/api/income/month", async (req, res) => {
 app.get("/api/top-province", async (req, res) => {
   const { month, year } = req.query;
   try {
-    const pool = await sql.connect(config);
+    const pool = await sql.connect(dbConfig);
     const result = await pool.request()
       .input("Month", sql.Int, month)
       .input("Year", sql.Int, year)
@@ -626,6 +640,16 @@ app.post("/api/add/job-of-emp", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+sql.connect(dbConfig).then(pool => {
+    if (pool.connected) {
+        console.log("✅ เชื่อมต่อฐานข้อมูลสำเร็จ!");
+    }
+}).catch(err => {
+    console.error("❌ เชื่อมต่อฐานข้อมูลล้มเหลว:");
+    console.error("Error Code:", err.code);
+    console.error("Message:", err.message);
+});
 
 app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);
