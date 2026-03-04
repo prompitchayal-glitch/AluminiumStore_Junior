@@ -26,7 +26,7 @@ type MenuItem = {
   icon: any;
   colors: readonly [ColorValue, ColorValue];
   path: Href;
-  iconSize?: number;
+  iconSize?: number; 
 };
 
 // ใช้สำหรับเก็บสถานะว่ามีการ Login ในเซสชั่นปัจจุบันแล้วหรือยัง (เมื่อเริ่มต้นแอปจะเป็น false)
